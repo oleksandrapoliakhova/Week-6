@@ -47,7 +47,7 @@
             width: window.innerWidth,
             height: window.innerHeight
         };
-        const margin = window_dims.width * .2
+        const margin = window_dims.width * .2;
 
 
         /*-------------------------------------------------------*/
@@ -55,9 +55,9 @@
         /*-------------------------------------------------------*/
 
         // a topojson file containing population of each town in different years
-        const MA_counties = "./data/towns.topojson"
+        const MA_counties = "./data/towns.topojson";
             // gini index per county
-        const gini_index = "./data/gini_index.csv"
+        const gini_index = "./data/gini_index.csv";
 
 
         // open both files
@@ -76,6 +76,10 @@
             // if topojson file is imported we need to 
             // convert topology data to geojson 
             const geojson = topojson.feature(topo_data, topo_data.objects.ma);
+            geojson["features"].map((x, y) => {
+                geojson["features"][y]["properties"]["diff"] =
+                    x["properties"]["POP2010"] - x["properties"]["POP2000"];
+            });
 
             /*-------------------------------------------------------*/
             /*----------------------Projections----------------------*/
@@ -108,13 +112,13 @@
             let logScale = d3.scaleLog()
                 .domain(d3.extent(geojson.features, (d) => {
                     return d['properties']['POP2010']
-                }))
+                }));
 
             // if the data is scaled using linear scale
             let linearScale = d3.scaleLinear()
                 .domain(d3.extent(geojson.features, (d) => {
-                    return d['properties']['POP2010']
-                }))
+                    return d['properties']['diff']
+                }));
 
             /*-------------------------------------------------------*/
             /*---------------------- Tooltip ------------------------*/
@@ -135,8 +139,7 @@
                 .enter()
                 .append("path")
                 .attr("d", d => geoPath_generator(d))
-                //.attr("fill", d => colorInterpolator(logScale(d['properties']['POP2010'])))
-                .attr("fill", d => colorInterpolator(linearScale(d['properties']['POP2010'])))
+                .attr("fill", d => colorInterpolator(linearScale(d['properties']['diff'])))
                 .on("mouseenter", (m, d) => {
                     tooltip.transition()
                         .duration(200)

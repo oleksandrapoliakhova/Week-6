@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="./libs/d3.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+    <script src="https://d3js.org/topojson.v1.min.js"></script>
+    <title>MA Map</title>
+    <style>
+
+        path {
+            stroke-width: .5px;
+            stroke: black
+        }
+
+        .countyClass {
+            fill-opacity: .30%;
+
+        }
+
+        div.legend {
+            position: static;
+            float: right;
+            padding-top: 3em;
+        }
+    </style>
+</head>
+
+<body>
+<div id="content">
+    <div class="container">
+        <nav class="navbar navbar-light bg-light">
+            <h1>Major Assignment # 3</h1>
+            <h3>Oleksandra Poliakhova</h3>
+        </nav>
+
+        <div class="legend">
+        <div class="card" style="width: 18rem; height: 5rem;">
+            <div class="card-body">
+                <div></div>
+            </div>
+        </div>
+        </div>
+    </div>
+</div>
+</div>
+<script>
+
+
+    /*-------------------------------------------------------*/
+    /*------------------- Window setting --------------------*/
+    /*-------------------------------------------------------*/
+    // dimension of the page
+    const window_dims = {
+        width: window.innerWidth,
+        height: window.innerHeight
+    };
+    const margin = window_dims.width * .2;
+
+
+    /*-------------------------------------------------------*/
+    /*-----------------parallel load data--------------------*/
+    /*-------------------------------------------------------*/
+
+    // a topojson file containing population of each town in different years
+    const MA_counties = "./data/towns.topojson";
+    // gini index per county
+    const gini_index = "./data/gini_index.csv";
+
+
+    // open both files
+    Promise.all([
+        d3.json(MA_counties),
+        d3.csv(gini_index)
+    ]).then(data => {
+        // topology data
+        console.log(data);
+        const topo_data = data[0];
+
+
+        let countiesMap = [
+            {
+                f: 25001,
+                c: "Barnstable"
+            },
+            {
+                f: 25003,
+                c: "Berkshire"
+            },
+            {
+                f: 25005,
+                c: "Bristol"
+            },
+            {
+                f: 25007,
+                c: "Dukes"
+            },
+            {
+                f: 25009,
+                c: "Essex"
+            },
+            {
+                f: 25011,
+                c: "Franklin"
+            },
+            {
+                f: 25013,
+                c: "Hampden"
+            },
+            {
+                f: 25015,
+                c: "Hampshire"
+            },
+            {
+                f: 25017,
+                c: "Middlesex"
+            },
+            {
+                f: 25019,
+                c: "Nantucket"
+            },
+            {
+                f: 25021,
+                c: "Norfolk"
+            },
+            {
+                f: 25023,
+                c: "Plymouth"
+            },
+            {
+                f: 25025,
+                c: "Suffolk"
+            },
+            {
+                f: 25027,
+                c: "Worcester"
+            }
+    ];
+
+
+        /*-------------------------------------------------------*/
+        /*-----------------Topojson data handling----------------*/
+        /*-------------------------------------------------------*/
+        // if topojson file is imported we need to
+        // convert topology data to geojson
+        const geojson = topojson.feature(topo_data, topo_data.objects.ma);
+        geojson["features"].map((x, y) => {
+            geojson["features"][y]["properties"]["diff"] =
+                x["properties"]["POP2010"] - x["properties"]["POP2000"];
+        });
+
+        const fipsCodes =
+            geojson["features"].map(fip => fip["properties"]["FIPS_STCO"]);
+
+        let colors = {};
+        let fipsUniq = [...new Set(fipsCodes)];
+        const array3 = d3.schemeCategory10.slice(0, 9).concat(d3.schemeAccent.slice(0, 5));
+
+        fipsUniq.map((x, y) => {
+            colors[x.toString()] = array3[y % fipsUniq.length];
+        });
+
+
+        /*-------------------------------------------------------*/
+        /*----------------------Projections----------------------*/
+        /*-------------------------------------------------------*/
+        const projections = [
+            d3.geoAzimuthalEqualArea(), //Azimuthal projections project the sphere directly onto a plane.
+            d3.geoAlbersUsa(), // USA conic projection
+            d3.geoAlbers(), // equal-area conic projection
+            d3.geoMercator(), // cylindrical projection
+            d3.geoNaturalEarth1(), // pseudocylindrical projection designed by Tom Patterson
+            d3.geoEqualEarth(), // Equal Earth projection, by Bojan Šavrič et al., 2018.
+            d3.geoConicEqualArea(), //equal-area conic projection
+            d3.geoEquirectangular(), //Cylindrical Projections
+            d3.geoOrthographic()
+        ];
+
+        /*-------------------------------------------------------*/
+        /*----------------geoPath generator----------------------*/
+        /*-------------------------------------------------------*/
+
+        const geoPath_generator = d3.geoPath()
+            .projection(projections[3].fitSize([window_dims.width - margin, window_dims.height - margin], geojson))
+
+        /*-------------------------------------------------------*/
+        /*----------------------Color Scaling--------------------*/
+        /*-------------------------------------------------------*/
+        ////https://observablehq.com/@d3/working-with-color
+        var colorInterpolator = d3.interpolateRgbBasis(["blue", "steelblue", "green", "purple", "red"])
+        // if the data is scaled using log scale
+        let logScale = d3.scaleLog()
+            .domain(d3.extent(geojson.features, (d) => {
+                return d['properties']['POP2010']
+            }));
+
+        // if the data is scaled using linear scale
+        let linearScale = d3.scaleLinear()
+            .domain(d3.extent(geojson.features, (d) => {
+                return d['properties']['diff']
+            }));
+
+        /*-------------------------------------------------------*/
+        /*---------------------- Tooltip ------------------------*/
+        /*-------------------------------------------------------*/
+
+        /*--------------------------------------------------------*/
+        /*----------------- channelling marks --------------------*/
+        /*--------------------------------------------------------*/
+
+        // Append a SVG element to body, then append a path for the boundaries
+        let svg = d3.select("body").append("svg")
+            .attr("width", "100vw")
+            .attr("height", "100vh");
+
+        svg.selectAll("path")
+            .data(geojson.features)
+            .enter()
+            .append("path")
+            .attr("d", d => geoPath_generator(d))
+            .attr("class", d => "class" + d["properties"]["FIPS_STCO"])
+            // colors:
+            .attr("fill", d => colors[d["properties"]["FIPS_STCO"]])
+
+            .on("mouseenter", (m, d) => {
+                d3.selectAll(`.class${d["properties"]["FIPS_STCO"]}`).classed("countyClass", true);
+
+                let obj = countiesMap.find(o => o.f === d['properties']['FIPS_STCO']);
+
+                d3.select("div.card-body").html(
+                    "<div>" +
+                    "FIPS_STCO: " + d['properties']['FIPS_STCO'] + "</div>"
+                    + "<div>" +
+                    "COUNTY: " + obj.c + ", MA" + "</div>"
+                )
+
+                    .style("right", m.clientX + "px")
+                    .style("top", m.clientY + "px");
+            })
+
+            .on("mouseout", (m, d) => {
+                d3.selectAll(`.class${d["properties"]["FIPS_STCO"]}`).classed("countyClass", false);
+            })
+    })
+</script>
+</body>
+</html>
